@@ -6,6 +6,10 @@ import torchvision.datasets as datasets
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter  # to print to tensorboard
+import matplotlib.pyplot as plt
+import os
+import numpy as np
+import torchvision.utils as vutils
 
 class Discriminator(nn.Module):
     def __init__(self, img_dim):
@@ -27,28 +31,27 @@ class Generator(nn.Module):
             nn.Linear(z_dim, 256),
             nn.LeakyReLU(0.1),
             nn.Linear(256, img_dim),
-            nn.Tanh(),  # normalize inputs to [-1, 1] so make outputs [-1, 1]
+            nn.Tanh(),
         )
 
     def forward(self, x):
         return self.gen(x)
-    
+
 # Hyperparameters etc.
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(device)
 lr = 3e-4
 z_dim = 64
 image_dim = 28 * 28 * 1  # 784
 batch_size = 32
-num_epochs = 50
+num_epochs = 100
 
 disc = Discriminator(image_dim).to(device)
 gen = Generator(z_dim, image_dim).to(device)
 fixed_noise = torch.randn((batch_size, z_dim)).to(device)
-transforms = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,)),]
+transform = transforms.Compose(
+    [transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]
 )
-dataset = datasets.MNIST(root="dataset/", transform=transforms, download=True)
+dataset = datasets.MNIST(root="dataset/", transform=transform, download=True)
 loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 opt_disc = optim.Adam(disc.parameters(), lr=lr)
 opt_gen = optim.Adam(gen.parameters(), lr=lr)
@@ -57,12 +60,17 @@ writer_fake = SummaryWriter(f"logs/fake")
 writer_real = SummaryWriter(f"logs/real")
 step = 0
 
+# Directory for saving generated images
+save_dir = "./generated_images"
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
 for epoch in range(num_epochs):
     for batch_idx, (real, _) in enumerate(loader):
         real = real.view(-1, 784).to(device)
         batch_size = real.shape[0]
 
-        ### Train Discriminator: max log(D(x)) + log(1 - D(G(z)))
+        ### Train Discriminator
         noise = torch.randn(batch_size, z_dim).to(device)
         fake = gen(noise)
         disc_real = disc(real).view(-1)
@@ -74,7 +82,7 @@ for epoch in range(num_epochs):
         lossD.backward(retain_graph=True)
         opt_disc.step()
 
-        ### Train Generator: min log(1 - D(G(z))) <-> max log(D(G(z))
+        ### Train Generator
         output = disc(fake).view(-1)
         lossG = criterion(output, torch.ones_like(output))
         gen.zero_grad()
@@ -87,16 +95,24 @@ for epoch in range(num_epochs):
                   Loss D: {lossD:.4f}, loss G: {lossG:.4f}"
             )
 
-            with torch.no_grad():
-                fake = gen(fixed_noise).reshape(-1, 1, 28, 28)
-                data = real.reshape(-1, 1, 28, 28)
-                img_grid_fake = torchvision.utils.make_grid(fake, normalize=True)
-                img_grid_real = torchvision.utils.make_grid(data, normalize=True)
+    # Generate and save images after each epoch
+    with torch.no_grad():
+        fake = gen(fixed_noise).reshape(-1, 1, 28, 28)
+        img_grid = vutils.make_grid(fake, normalize=True)
+        vutils.save_image(img_grid, f"{save_dir}/epoch_{epoch}.png")
+        
+    #     # Optionally display the image using matplotlib
+    #     plt.figure(figsize=(8,8))
+    #     plt.axis("off")
+    #     plt.title(f"Generated Images After Epoch {epoch}")
+    #     plt.imshow(np.transpose(img_grid.cpu().numpy(), (1,2,0)))
+    #     plt.show()
 
-                writer_fake.add_image(
-                    "Mnist Fake Images", img_grid_fake, global_step=step
-                )
-                writer_real.add_image(
-                    "Mnist Real Images", img_grid_real, global_step=step
-                )
-                step += 1
+    # Log generated images for TensorBoard
+    data = real.reshape(-1, 1, 28, 28)
+    img_grid_fake = vutils.make_grid(fake, normalize=True)
+    img_grid_real = vutils.make_grid(data, normalize=True)
+
+    writer_fake.add_image("Mnist Fake Images", img_grid_fake, global_step=step)
+    writer_real.add_image("Mnist Real Images", img_grid_real, global_step=step)
+    step += 1
