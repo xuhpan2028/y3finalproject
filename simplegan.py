@@ -10,6 +10,25 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import torchvision.utils as vutils
+import time
+import subprocess
+
+def monitor_gpu_performance(output_file):
+    # Command to run nvidia-smi and capture GPU performance metrics
+    command = "nvidia-smi --query-gpu=utilization.gpu,utilization.memory,memory.total,memory.free,memory.used,temperature.gpu --format=csv"
+    
+    # Run the command and capture the output
+    output = subprocess.check_output(command, shell=True)
+    
+    # Decode the output from bytes to string
+    output = output.decode("utf-8")
+    
+    # Write the output to the specified file
+    with open(output_file, "w") as f:
+        f.write(output)
+
+output_file = "gpu_performance.txt"
+
 
 class Discriminator(nn.Module):
     def __init__(self, img_dim):
@@ -39,11 +58,13 @@ class Generator(nn.Module):
 
 # Hyperparameters etc.
 device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using {device} device")
 lr = 3e-4
 z_dim = 64
 image_dim = 28 * 28 * 1  # 784
 batch_size = 32
 num_epochs = 100
+start_time = time.time()
 
 disc = Discriminator(image_dim).to(device)
 gen = Generator(z_dim, image_dim).to(device)
@@ -66,6 +87,7 @@ if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
 for epoch in range(num_epochs):
+    start_epoch_time = time.time()
     for batch_idx, (real, _) in enumerate(loader):
         real = real.view(-1, 784).to(device)
         batch_size = real.shape[0]
@@ -90,10 +112,12 @@ for epoch in range(num_epochs):
         opt_gen.step()
 
         if batch_idx == 0:
+
             print(
                 f"Epoch [{epoch}/{num_epochs}] Batch {batch_idx}/{len(loader)} \
-                  Loss D: {lossD:.4f}, loss G: {lossG:.4f}"
+                Loss D: {lossD:.4f}, loss G: {lossG:.4f}", end="\t"
             )
+            
 
     # Generate and save images after each epoch
     with torch.no_grad():
@@ -116,3 +140,8 @@ for epoch in range(num_epochs):
     writer_fake.add_image("Mnist Fake Images", img_grid_fake, global_step=step)
     writer_real.add_image("Mnist Real Images", img_grid_real, global_step=step)
     step += 1
+
+    epoch_time = time.time() - start_epoch_time
+    print(f"Epoch [{epoch}/{num_epochs}] Processing Time: {epoch_time:.2f} seconds")
+    monitor_gpu_performance(output_file)
+

@@ -1,0 +1,2 @@
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+28 %, 9 %, 6144 MiB, 5212 MiB, 767 MiB, 47
