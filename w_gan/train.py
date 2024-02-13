@@ -9,8 +9,11 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from model import Discriminator, Generator, initialize_weights
 import subprocess
+import os
+import torchvision.utils as vutils
 
-
+img_dir = "generated_images"
+os.makedirs(img_dir, exist_ok=True)
 
 def monitor_gpu_performance(output_file):
     # Command to run nvidia-smi and capture GPU performance metrics
@@ -124,6 +127,16 @@ for epoch in range(NUM_EPOCHS):
 
                 writer_real.add_image("Real", img_grid_real, global_step=step)
                 writer_fake.add_image("Fake", img_grid_fake, global_step=step)
+
+                gen.eval()  # Set the generator to evaluation mode
+                fixed_noise = torch.randn(32, Z_DIM, 1, 1).to(device)  # Generate fixed noise
+                # Generate a batch of images with the generator
+                fake_images = gen(fixed_noise)
+                # Create a grid of images
+                img_grid = vutils.make_grid(fake_images, padding=2, normalize=True)
+                # Save the grid of images to a file
+                vutils.save_image(img_grid, os.path.join(img_dir, f"epoch_{epoch+1}.png"))
+                gen.train()
 
             step += 1
             gen.train()
