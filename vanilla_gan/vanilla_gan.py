@@ -145,3 +145,10 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch}/{num_epochs}] Processing Time: {epoch_time:.2f} seconds")
     monitor_gpu_performance(output_file)
 
+
+
+
+
+
+
+#get reliable data when other applications using cpu
