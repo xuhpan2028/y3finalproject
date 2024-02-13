@@ -12,32 +12,19 @@ import subprocess
 
 
 
-def record_system_info(output_file_path):
-    # Commands to get system info
-    commands = {
-        "CPU and Memory Utilization (top)": "top -l 1 -n 0",
-        "Memory Utilization (vm_stat)": "vm_stat",
-        "Disk Usage (df)": "df -h"
-    }
+def monitor_gpu_performance(output_file):
+    # Command to run nvidia-smi and capture GPU performance metrics
+    command = "nvidia-smi --query-gpu=utilization.gpu,utilization.memory,memory.total,memory.free,memory.used,temperature.gpu --format=csv"
     
-    with open(output_file_path, "a") as file:  # Open file in append mode
-        # Write a header with the recording time
-        from datetime import datetime
-        file.write(f"System Information Recorded at: {datetime.now()}\n\n")
-        
-        for description, command in commands.items():
-            # Write the command description
-            file.write(f"{description}:\n\n")
-            
-            # Run the command and capture the output
-            try:
-                output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True)
-                file.write(output)
-            except subprocess.CalledProcessError as e:
-                file.write(f"Error executing command '{command}': {e.output}")
-            
-            # Add a separator between command outputs for readability
-            file.write("\n" + "-"*50 + "\n\n")
+    # Run the command and capture the output
+    output = subprocess.check_output(command, shell=True)
+    
+    # Decode the output from bytes to string
+    output = output.decode("utf-8")
+    
+    # Write the output to the specified file (append mode)
+    with open(output_file, "a") as f:
+        f.write(output)
 
 output_file = "system_info.txt"
 
@@ -142,4 +129,4 @@ for epoch in range(NUM_EPOCHS):
             gen.train()
             critic.train()
 
-    record_system_info(output_file)
+    monitor_gpu_performance(output_file)
