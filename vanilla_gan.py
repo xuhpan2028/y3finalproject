@@ -23,8 +23,8 @@ def monitor_gpu_performance(output_file):
     # Decode the output from bytes to string
     output = output.decode("utf-8")
     
-    # Write the output to the specified file
-    with open(output_file, "w") as f:
+    # Write the output to the specified file (append mode)
+    with open(output_file, "a") as f:
         f.write(output)
 
 output_file = "gpu_performance.txt"
