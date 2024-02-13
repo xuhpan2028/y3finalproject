@@ -200,3 +200,9 @@ utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [Mi
 70 %, 25 %, 6144 MiB, 1508 MiB, 4471 MiB, 77
 utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
 87 %, 39 %, 6144 MiB, 1501 MiB, 4478 MiB, 77
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+0 %, 0 %, 8192 MiB, 1794 MiB, 6179 MiB, 64
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+41 %, 28 %, 8192 MiB, 1794 MiB, 6179 MiB, 64
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+0 %, 0 %, 8192 MiB, 1794 MiB, 6179 MiB, 65
