@@ -1,0 +1,52 @@
+System Information Recorded at: 2024-02-13 12:28:00.035139
+
+CPU and Memory Utilization (top):
+
+Error executing command 'top -l 1 -n 0': top: unknown option 'l'
+Usage:
+  top -hv | -bcEHiOSs1 -d secs -n max -u|U user -p pid(s) -o field -w [cols]
+
+--------------------------------------------------
+
+Memory Utilization (vm_stat):
+
+Error executing command 'vm_stat': /bin/sh: 1: vm_stat: not found
+
+--------------------------------------------------
+
+Disk Usage (df):
+
+Filesystem                                            Size  Used Avail Use% Mounted on
+udev                                                   32G     0   32G   0% /dev
+tmpfs                                                 6.3G  2.4M  6.3G   1% /run
+/dev/mapper/systemvg-root                              47G   27G   19G  59% /
+tmpfs                                                  32G  8.0K   32G   1% /dev/shm
+tmpfs                                                 5.0M     0  5.0M   0% /run/lock
+tmpfs                                                  32G     0   32G   0% /sys/fs/cgroup
+tmpfs                                                  32G  260K   32G   1% /tmp
+/dev/mapper/systemvg-var                              126G   57G   65G  47% /var
+/dev/mapper/systemvg-data                            1007G  187G  770G  20% /data
+picard-nas.doc.ic.ac.uk:/volume1/scratch               11T  7.7T  3.1T  72% /scratch
+owl.doc.ic.ac.uk.:/export/users/z/zn19                8.5T  8.3T  233G  98% /homes/zn19
+tmpfs                                                 6.3G     0  6.3G   0% /run/user/14056
+fs-vol-matlab.doc.ic.ac.uk.:/export/vol/matlab        275G  224G   52G  82% /vol/matlab
+tmpfs                                                 6.3G     0  6.3G   0% /run/user/2045
+fs-vol-bitbucket.doc.ic.ac.uk.:/export/vol/bitbucket  100T   87T   13T  88% /vol/bitbucket
+owl.doc.ic.ac.uk.:/export/users/y/yc3919              8.5T  8.3T  233G  98% /homes/yc3919
+eagle.doc.ic.ac.uk.:/export/users/h/hp921             8.5T  8.4T  178G  98% /homes/hp921
+tmpfs                                                 6.3G     0  6.3G   0% /run/user/16022
+
+--------------------------------------------------
+
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+69 %, 27 %, 8192 MiB, 668 MiB, 7305 MiB, 83
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+100 %, 48 %, 8192 MiB, 668 MiB, 7305 MiB, 85
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+64 %, 32 %, 8192 MiB, 668 MiB, 7305 MiB, 85
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+100 %, 38 %, 8192 MiB, 668 MiB, 7305 MiB, 83
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+100 %, 37 %, 8192 MiB, 668 MiB, 7305 MiB, 85
+utilization.gpu [%], utilization.memory [%], memory.total [MiB], memory.free [MiB], memory.used [MiB], temperature.gpu
+100 %, 37 %, 8192 MiB, 668 MiB, 7305 MiB, 83
