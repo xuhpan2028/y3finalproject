@@ -71,8 +71,8 @@ dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 log_file = "training_log.txt"  # Define the log file name
 
 # Open the log file
-with open(log_file, "w") as file:
-    file.write("Epoch, Batch, D Loss, G Loss, MMD Score, EMD Score, CPU Usage (%), GPU Memory Allocated (bytes)\n")
+file =  open(log_file, "w")
+file.write("Epoch, Batch, D Loss, G Loss, MMD Score, EMD Score, CPU Usage (%), GPU Memory Allocated (bytes)\n")
 
 for epoch in range(NUM_EPOCHS):
     epoch_loss_D, epoch_loss_G = 0, 0  # For averaging losses over the epoch
