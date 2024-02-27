@@ -11,13 +11,17 @@ def gaussian_kernel(x, y, sigma=1.0):
     return torch.exp(-torch.norm(x - y) ** 2 / (2 * sigma ** 2))
 
 def mmd(x, y, kernel=gaussian_kernel):
+    # Flatten the input tensors to shape [batch_size, -1]
+    x = x.view(x.size(0), -1)  # Reshape x to have shape [batch_size, 784]
+    y = y.view(y.size(0), -1)  # Reshape y to have shape [batch_size, 784]
+
     m = x.size(0)
     n = y.size(0)
     xx = kernel(x, x).sum() / (m * (m - 1))
     yy = kernel(y, y).sum() / (n * (n - 1))
-    y = y.view(-1, 784)  # Reshape y to have the same shape as x
     xy = kernel(x, y).sum() / (m * n)
     return xx + yy - 2 * xy
+
 
 def emd(x, y):
     y = y.view(-1, 784)  # Reshape y to have the same shape as x
