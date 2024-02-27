@@ -24,9 +24,16 @@ def mmd(x, y, kernel=gaussian_kernel):
 
 
 def emd(x, y):
-    y = y.view(-1, 784)  # Reshape y to have the same shape as x
-    return torch.nn.functional.pairwise_distance(x, y, p=2).mean()
+    # Flatten both tensors to have shape [-1, 784], assuming x and y are batches of 1x28x28 images
+    x_flat = x.view(x.shape[0], -1)  # Reshape x to [batch_size, 784]
+    y_flat = y.view(y.shape[0], -1)  # Reshape y to [batch_size, 784]
 
+    # Compute the pairwise distance between the flattened images in the batch
+    # Note: pairwise_distance expects inputs of shape [batch_size, vector_size]
+    distance = torch.nn.functional.pairwise_distance(x_flat, y_flat, p=2)
+    
+    # Return the mean of the distances
+    return distance.mean()
 
 # Hyperparameters
 LEARNING_RATE = 0.0002
