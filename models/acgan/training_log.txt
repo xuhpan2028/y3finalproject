@@ -1,0 +1,1 @@
+Epoch, Batch, D Loss, G Loss, MMD Score, EMD Score, CPU Usage (%), GPU Memory Allocated (bytes)
