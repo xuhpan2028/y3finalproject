@@ -5,6 +5,24 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from torch import nn
 from tqdm import tqdm  # Import tqdm for the progress bar
+import psutil
+
+def gaussian_kernel(x, y, sigma=1.0):
+    return torch.exp(-torch.norm(x - y) ** 2 / (2 * sigma ** 2))
+
+def mmd(x, y, kernel=gaussian_kernel):
+    m = x.size(0)
+    n = y.size(0)
+    xx = kernel(x, x).sum() / (m * (m - 1))
+    yy = kernel(y, y).sum() / (n * (n - 1))
+    y = y.view(-1, 784)  # Reshape y to have the same shape as x
+    xy = kernel(x, y).sum() / (m * n)
+    return xx + yy - 2 * xy
+
+def emd(x, y):
+    y = y.view(-1, 784)  # Reshape y to have the same shape as x
+    return torch.nn.functional.pairwise_distance(x, y, p=2).mean()
+
 
 # Hyperparameters
 LEARNING_RATE = 0.0002
@@ -37,6 +55,13 @@ transform = transforms.Compose([
 
 dataset = datasets.MNIST('.', download=True, transform=transform)
 dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+
+log_file = "training_log.txt"  # Define the log file name
+
+# Open the log file
+with open(log_file, "w") as file:
+    file.write("Epoch, Batch, D Loss, G Loss, MMD Score, EMD Score, CPU Usage (%), GPU Memory Allocated (bytes)\n")
 
 for epoch in range(NUM_EPOCHS):
     epoch_loss_D, epoch_loss_G = 0, 0  # For averaging losses over the epoch
@@ -99,3 +124,16 @@ for epoch in range(NUM_EPOCHS):
     avg_epoch_loss_D = epoch_loss_D / len(dataloader)
     avg_epoch_loss_G = epoch_loss_G / len(dataloader)
     print(f"Epoch {epoch+1} completed. Avg D Loss: {avg_epoch_loss_D:.6f}, Avg G Loss: {avg_epoch_loss_G:.6f}")
+
+    
+    
+    mmd_score = mmd(real_imgs, gen_imgs).item()
+    emd_score = emd(real_imgs, gen_imgs).item()
+
+
+    # Monitor performance
+    cpu_usage = psutil.cpu_percent()
+    gpu_usage = torch.cuda.memory_allocated()
+
+    # Logging
+    file.write(f"{epoch+1}, {i}, {d_loss.item():.6f}, {g_loss.item():.6f}, {mmd_score:.6f}, {emd_score:.6f}, {cpu_usage}, {gpu_usage}\n")
