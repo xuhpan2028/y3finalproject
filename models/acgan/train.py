@@ -1,5 +1,5 @@
 import torch
-from model import Discriminator, Generator
+from model import Discriminator, Generator  # Ensure these are your correct import paths
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
@@ -13,14 +13,18 @@ BATCH_SIZE = 64
 IMAGE_SIZE = 28
 NUM_EPOCHS = 50
 
+# Device configuration
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 # Initialize generator and discriminator
-generator = Generator()
-discriminator = Discriminator()
+generator = Generator().to(device)
+discriminator = Discriminator().to(device)
 
 # Optimizers
 optimizer_G = optim.Adam(generator.parameters(), lr=LEARNING_RATE, betas=BETAS)
 optimizer_D = optim.Adam(discriminator.parameters(), lr=LEARNING_RATE, betas=BETAS)
 
+# Loss functions
 adversarial_loss = torch.nn.BCEWithLogitsLoss()
 auxiliary_loss = torch.nn.CrossEntropyLoss()
 
@@ -34,16 +38,13 @@ transform = transforms.Compose([
 dataset = datasets.MNIST('.', download=True, transform=transform)
 dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
 for epoch in range(NUM_EPOCHS):
     epoch_loss_D, epoch_loss_G = 0, 0  # For averaging losses over the epoch
     with tqdm(enumerate(dataloader), total=len(dataloader)) as pbar:
         for i, (imgs, labels) in pbar:
-
             batch_size = imgs.shape[0]
 
-            # Real images
+            # Move data to the correct device
             real_imgs = imgs.to(device)
             labels = labels.to(device)
 
@@ -54,7 +55,6 @@ for epoch in range(NUM_EPOCHS):
             # ---------------------
             #  Train Discriminator
             # ---------------------
-
             optimizer_D.zero_grad()
 
             # Loss for real images
@@ -79,11 +79,7 @@ for epoch in range(NUM_EPOCHS):
             # -----------------
             #  Train Generator
             # -----------------
-
             optimizer_G.zero_grad()
-
-            # Generate a batch of images
-            gen_imgs = generator(noise, gen_labels)
 
             # Loss for fake images, but try to fool the discriminator
             validity, pred_label = discriminator(gen_imgs, gen_labels)
