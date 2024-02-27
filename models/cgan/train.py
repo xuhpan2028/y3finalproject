@@ -17,6 +17,27 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from utils import gradient_penalty, save_checkpoint, load_checkpoint
 from model import Discriminator, Generator, initialize_weights
+import psutil
+
+
+def gaussian_kernel(x, y, sigma=1.0):
+    return torch.exp(-torch.norm(x - y) ** 2 / (2 * sigma ** 2))
+
+def mmd(x, y, kernel=gaussian_kernel):
+    m = x.size(0)
+    n = y.size(0)
+    xx = kernel(x, x).sum() / (m * (m - 1))
+    yy = kernel(y, y).sum() / (n * (n - 1))
+    y = y.view(-1, 784)  # Reshape y to have the same shape as x
+    xy = kernel(x, y).sum() / (m * n)
+    return xx + yy - 2 * xy
+
+def emd(x, y):
+    y = y.view(-1, 784)  # Reshape y to have the same shape as x
+    return torch.nn.functional.pairwise_distance(x, y, p=2).mean()
+
+
+
 
 # Hyperparameters etc.
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -72,6 +93,9 @@ step = 0
 gen.train()
 critic.train()
 
+
+f = open("models/vanilla/info.txt", "w")
+f.write("Epoch\tMMD Score\tEMD Score\tCPU Usage (%)\tGPU Memory Usage (GB)\n")
 for epoch in range(NUM_EPOCHS):
     # Target labels not needed! <3 unsupervised
     for batch_idx, (real, labels) in enumerate(tqdm(loader)):
@@ -118,3 +142,13 @@ for epoch in range(NUM_EPOCHS):
                 writer_fake.add_image("Fake", img_grid_fake, global_step=step)
 
             step += 1
+
+    mmd_score = mmd(real, fake)
+    emd_score = emd(real, fake)
+    
+
+    # Monitor CPU and GPU performance
+    cpu_usage = psutil.cpu_percent()
+    gpu_usage = torch.cuda.memory_allocated() / 1024 ** 3  
+
+    f.write(f"{mmd_score}\t{emd_score}\t{cpu_usage}\t{gpu_usage}\n")

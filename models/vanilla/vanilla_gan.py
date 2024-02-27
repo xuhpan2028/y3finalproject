@@ -12,22 +12,10 @@ import numpy as np
 import torchvision.utils as vutils
 import time
 import subprocess
+import psutil
 
-def monitor_gpu_performance(output_file):
-    # Command to run nvidia-smi and capture GPU performance metrics
-    command = "nvidia-smi --query-gpu=utilization.gpu,utilization.memory,memory.total,memory.free,memory.used,temperature.gpu --format=csv"
-    
-    # Run the command and capture the output
-    output = subprocess.check_output(command, shell=True)
-    
-    # Decode the output from bytes to string
-    output = output.decode("utf-8")
-    
-    # Write the output to the specified file (append mode)
-    with open(output_file, "a") as f:
-        f.write(output)
 
-output_file = "gpu_performance.txt"
+output_file = "info.txt"
 
 
 class Discriminator(nn.Module):
@@ -55,6 +43,26 @@ class Generator(nn.Module):
 
     def forward(self, x):
         return self.gen(x)
+    
+
+
+def gaussian_kernel(x, y, sigma=1.0):
+    return torch.exp(-torch.norm(x - y) ** 2 / (2 * sigma ** 2))
+
+def mmd(x, y, kernel=gaussian_kernel):
+    m = x.size(0)
+    n = y.size(0)
+    xx = kernel(x, x).sum() / (m * (m - 1))
+    yy = kernel(y, y).sum() / (n * (n - 1))
+    y = y.view(-1, 784)  # Reshape y to have the same shape as x
+    xy = kernel(x, y).sum() / (m * n)
+    return xx + yy - 2 * xy
+
+def emd(x, y):
+    y = y.view(-1, 784)  # Reshape y to have the same shape as x
+    return torch.nn.functional.pairwise_distance(x, y, p=2).mean()
+
+
 
 # Hyperparameters etc.
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -63,9 +71,10 @@ lr = 3e-4
 z_dim = 64
 image_dim = 28 * 28 * 1  # 784
 batch_size = 32
-num_epochs = 100
+num_epochs = 5
 start_time = time.time()
 
+# Initialize Discriminator and Generator
 disc = Discriminator(image_dim).to(device)
 gen = Generator(z_dim, image_dim).to(device)
 fixed_noise = torch.randn((batch_size, z_dim)).to(device)
@@ -81,11 +90,13 @@ writer_fake = SummaryWriter(f"logs/fake")
 writer_real = SummaryWriter(f"logs/real")
 step = 0
 
-# Directory for saving generated images
-save_dir = "./generated_images"
-if not os.path.exists(save_dir):
-    os.makedirs(save_dir)
+# Initialize CPU and GPU performance monitoring
+cpu_usage = []
+gpu_usage = []
 
+# Training loop
+f = open("models/vanilla/info.txt", "w")
+f.write("Epoch\tMMD Score\tEMD Score\tCPU Usage (%)\tGPU Memory Usage (GB)\n")
 for epoch in range(num_epochs):
     start_epoch_time = time.time()
     for batch_idx, (real, _) in enumerate(loader):
@@ -112,18 +123,16 @@ for epoch in range(num_epochs):
         opt_gen.step()
 
         if batch_idx == 0:
-
             print(
                 f"Epoch [{epoch}/{num_epochs}] Batch {batch_idx}/{len(loader)} \
                 Loss D: {lossD:.4f}, loss G: {lossG:.4f}", end="\t"
             )
-            
 
     # Generate and save images after each epoch
     with torch.no_grad():
         fake = gen(fixed_noise).reshape(-1, 1, 28, 28)
         img_grid = vutils.make_grid(fake, normalize=True)
-        vutils.save_image(img_grid, f"{save_dir}/epoch_{epoch}.png")
+        # vutils.save_image(img_grid, f"{save_dir}/epoch_{epoch}.png")
         
     #     # Optionally display the image using matplotlib
     #     plt.figure(figsize=(8,8))
@@ -143,12 +152,14 @@ for epoch in range(num_epochs):
 
     epoch_time = time.time() - start_epoch_time
     print(f"Epoch [{epoch}/{num_epochs}] Processing Time: {epoch_time:.2f} seconds")
-    monitor_gpu_performance(output_file)
 
+    mmd_score = mmd(real, fake)
+    emd_score = emd(real, fake)
+    
 
+    # Monitor CPU and GPU performance
+    cpu_usage = psutil.cpu_percent()
+    gpu_usage = torch.cuda.memory_allocated() / 1024 ** 3  
 
-
-
-
-
-#get reliable data when other applications using cpu
+    f.write(f"{mmd_score}\t{emd_score}\t{cpu_usage}\t{gpu_usage}\n")
+f.close()
