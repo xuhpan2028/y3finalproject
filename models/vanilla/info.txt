@@ -1,1 +1,0 @@
-Epoch	MMD Score	EMD Score	CPU Usage (%)	GPU Memory Usage (GB)
