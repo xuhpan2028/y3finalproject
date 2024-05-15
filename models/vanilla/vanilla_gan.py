@@ -10,6 +10,8 @@ import torchvision.utils as vutils
 import time
 import psutil
 import sys
+import optuna
+
 
 # Helper functions for MMD and EMD
 def gaussian_kernel(x, y, sigma=1.0):
@@ -56,59 +58,79 @@ class Generator(nn.Module):
     def forward(self, x):
         return self.gen(x)
 
+
+
+
+
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 disc = Discriminator(784).to(device)
 gen = Generator(64, 784).to(device)
-opt_disc = optim.Adam(disc.parameters(), lr=3e-4)
-opt_gen = optim.Adam(gen.parameters(), lr=3e-4)
+# opt_disc = optim.Adam(disc.parameters(), lr=3e-4)
+# opt_gen = optim.Adam(gen.parameters(), lr=3e-4)
 criterion = nn.BCELoss()
 loader = DataLoader(datasets.MNIST(root="dataset/", transform=transforms.ToTensor(), download=True),
                     batch_size=32, shuffle=True)
 
-# Training Loop
-for epoch in range(100):
-    for batch_idx, (real, _) in enumerate(loader):
-        real = real.view(-1, 784).to(device)
-        noise = torch.randn(real.size(0), 64).to(device)
-        fake = gen(noise)
 
-        # Discriminator loss
-        lossD = (criterion(disc(real), torch.ones_like(disc(real))) +
-                 criterion(disc(fake.detach()), torch.zeros_like(disc(fake)))) / 2
-        opt_disc.zero_grad()
-        lossD.backward()
-        opt_disc.step()
+# Define the objective function for Optuna
+def objective(trial):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # Generator loss
-        lossG = criterion(disc(fake), torch.ones_like(disc(fake)))
-        opt_gen.zero_grad()
-        lossG.backward()
-        opt_gen.step()
+    # Suggest hyperparameters
+    lr_disc = trial.suggest_float("lr_disc", 1e-5, 1e-3, log=True)
+    lr_gen = trial.suggest_float("lr_gen", 1e-5, 1e-3, log=True)
+
+    # Initialize models and optimizers
+    disc = Discriminator(784).to(device)
+    gen = Generator(64, 784).to(device)
+    opt_disc = optim.Adam(disc.parameters(), lr=lr_disc)
+    opt_gen = optim.Adam(gen.parameters(), lr=lr_gen)
+    criterion = nn.BCELoss()
+
+    # Data loading
+    loader = DataLoader(datasets.MNIST(root="dataset/", transform=transforms.ToTensor(), download=True), batch_size=32, shuffle=True)
+
+    # Setup TensorBoard
+    writer = SummaryWriter(f'runs/GAN_MNIST_{trial.number}')
+
+    # Training loop
+    for epoch in range(10):  # Reduced number of epochs for faster trials
+        for batch_idx, (real, _) in enumerate(loader):
+            real = real.view(-1, 784).to(device)
+            noise = torch.randn(real.size(0), 64).to(device)
+            fake = gen(noise)
+
+            # Train Discriminator
+            lossD = (criterion(disc(real), torch.ones_like(disc(real))) +
+                     criterion(disc(fake.detach()), torch.zeros_like(disc(fake)))) / 2
+            opt_disc.zero_grad()
+            lossD.backward()
+            opt_disc.step()
+
+            # Train Generator
+            lossG = criterion(disc(fake), torch.ones_like(disc(fake)))
+            opt_gen.zero_grad()
+            lossG.backward()
+            opt_gen.step()
 
         # Log losses to TensorBoard
-        writer.add_scalar('Loss/Discriminator', lossD.item(), epoch * len(loader) + batch_idx)
-        writer.add_scalar('Loss/Generator', lossG.item(), epoch * len(loader) + batch_idx)
+        writer.add_scalar('Loss/Discriminator', lossD.item(), epoch)
+        writer.add_scalar('Loss/Generator', lossG.item(), epoch)
 
-        # Clear line before printing
-        sys.stdout.write("\r")
-        sys.stdout.flush()
-        # Print progress, updating the same line
-        print(f'Epoch [{epoch+1}/100], Batch {batch_idx+1}/{len(loader)}, Loss D: {lossD.item():.4f}, Loss G: {lossG.item():.4f}', end='')
+    writer.close()
+    
+    print(f"  Loss D: {lossD.item()}", end = " ")
+    print(f"  Loss G: {lossG.item()}")
+    return lossD.item() + lossG.item()  # You might choose a different metric for the study's objective
 
-    # Calculate and log MMD and EMD at the end of each epoch
-    mmd_score = mmd(real, fake.detach())
-    emd_score = emd(real.flatten(start_dim=1), fake.detach().flatten(start_dim=1))
-    writer.add_scalar('MMD Score', mmd_score.item(), epoch)
-    writer.add_scalar('EMD Score', emd_score.item(), epoch)
+# Run Optuna study
+study = optuna.create_study(direction="minimize")
+study.optimize(objective, n_trials=20)
 
-    # Log images at the end of each epoch
-    with torch.no_grad():
-        fake_images = gen(torch.randn(32, 64).to(device)).reshape(-1, 1, 28, 28)
-        img_grid = vutils.make_grid(fake_images, normalize=True)
-        writer.add_image('Generated Images', img_grid, epoch)
-
-    # Move to the next line after each epoch
-    print()
-
-# Close TensorBoard writer
-writer.close()
+# Print best hyperparameters
+print("Best trial:")
+trial = study.best_trial
+print(f"  Value (Loss D + Loss G): {trial.value}")
+for key, value in trial.params.items():
+    print(f"    {key}: {value}")
