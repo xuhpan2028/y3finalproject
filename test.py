@@ -24,7 +24,7 @@ def emd(x, y):
     return torch.nn.functional.pairwise_distance(x, y, p=2).mean()
 
 # Setting up TensorBoard
-writer = SummaryWriter('runs/vanilla_best')
+writer = SummaryWriter('runs/vanilla_notconverging')
 
 # Initialize Discriminator and Generator
 class Discriminator(nn.Module):
@@ -73,8 +73,8 @@ loader = DataLoader(datasets.MNIST(root="dataset/", transform=transforms.ToTenso
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Suggest hyperparameters
-lr_disc = 3e-4
-lr_gen = 3e-4
+lr_disc = 3e-3
+lr_gen = 3e-3
 
 # Initialize models and optimizers
 disc = Discriminator(784).to(device)
@@ -84,7 +84,7 @@ opt_gen = optim.Adam(gen.parameters(), lr=lr_gen)
 criterion = nn.BCELoss()
 
 transforms = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.5, ), (0.5, ))] 
+    [transforms.ToTensor()] 
 )
 
 # Data loading
