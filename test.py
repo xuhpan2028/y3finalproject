@@ -1,32 +1,11 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torchvision.datasets as datasets
-from torch.utils.data import DataLoader
-import torchvision.transforms as transforms
-from torch.utils.tensorboard import SummaryWriter
-import optuna
+import os
 
-
-# Helper functions for MMD and EMD
-def gaussian_kernel(x, y, sigma=1.0):
-    return torch.exp(-torch.norm(x - y, dim=1) ** 2 / (2 * sigma ** 2))
-
-def mmd(x, y, kernel=gaussian_kernel):
-    m = x.size(0)
-    n = y.size(0)
-    xx = kernel(x, x).mean()
-    yy = kernel(y, y).mean()
-    xy = kernel(x, y).mean()
-    return xx + yy - 2 * xy
-
-def emd(x, y):
-    return torch.nn.functional.pairwise_distance(x, y, p=2).mean()
-
-# Setting up TensorBoard
-writer = SummaryWriter('runs/vanilla_notconverging')
-
-# Initialize Discriminator and Generator
+# Define the discriminator model
 class Discriminator(nn.Module):
     def __init__(self, img_dim):
         super().__init__()
@@ -34,98 +13,70 @@ class Discriminator(nn.Module):
             nn.Linear(img_dim, 128),
             nn.LeakyReLU(0.1),
             nn.Linear(128, 1),
-            nn.Sigmoid(),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         return self.disc(x)
 
-class Generator(nn.Module):
-    def __init__(self, z_dim, img_dim):
-        super().__init__()
-        self.gen = nn.Sequential(
-            nn.Linear(z_dim, 256),
-            nn.LeakyReLU(0.1),
-            nn.Linear(256, img_dim),
-            nn.Tanh(),
-        )
+# Function to load and preprocess data
+def load_and_preprocess_data():
+    test_url = 'https://raw.githubusercontent.com/merteroglu/NSL-KDD-Network-Instrusion-Detection/master/NSL_KDD_Test.csv'
+    col_names = ["duration","protocol_type","service","flag","src_bytes",
+        "dst_bytes","land","wrong_fragment","urgent","hot","num_failed_logins",
+        "logged_in","num_compromised","root_shell","su_attempted","num_root",
+        "num_file_creations","num_shells","num_access_files","num_outbound_cmds",
+        "is_host_login","is_guest_login","count","srv_count","serror_rate",
+        "srv_serror_rate","rerror_rate","srv_rerror_rate","same_srv_rate",
+        "diff_srv_rate","srv_diff_host_rate","dst_host_count","dst_host_srv_count",
+        "dst_host_same_srv_rate","dst_host_diff_srv_rate","dst_host_same_src_port_rate",
+        "dst_host_srv_diff_host_rate","dst_host_serror_rate","dst_host_srv_serror_rate",
+        "dst_host_rerror_rate","dst_host_srv_rerror_rate","label"]
 
-    def forward(self, x):
-        return self.gen(x)
+    df_test = pd.read_csv(test_url, header=None, names = col_names)
 
+    # Preprocess the test data
+    categorical_columns=['protocol_type', 'service', 'flag']
+    df_categorical_values = df_test[categorical_columns]
+    df_categorical_values_enc = df_categorical_values.apply(LabelEncoder().fit_transform)
+    df_test[categorical_columns] = df_categorical_values_enc
+    df_test['label'] = df_test['label'].apply(lambda x: 0 if x == 'normal' else 1)
 
+    test_labels = df_test['label'].values
+    test_data = df_test.drop(columns=['label']).values.astype(np.float32)
 
+    scaler = MinMaxScaler(feature_range=(-1, 1))
+    test_data = scaler.fit_transform(test_data)
 
+    return torch.tensor(test_data), test_labels
 
+# Load models and evaluate
+def evaluate_model():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("using ", device)
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-disc = Discriminator(784).to(device)
-gen = Generator(64, 784).to(device)
-# opt_disc = optim.Adam(disc.parameters(), lr=3e-4)
-# opt_gen = optim.Adam(gen.parameters(), lr=3e-4)
-criterion = nn.BCELoss()
-loader = DataLoader(datasets.MNIST(root="dataset/", transform=transforms.ToTensor(), download=True),
-                    batch_size=32, shuffle=True)
+    # Load pre-trained models
+    img_dim = 41  # Number of features in the dataset
+    latent_dim = 100
+    save_path = 'savedmodel/'
 
+    discriminator = Discriminator(img_dim).to(device)
+    discriminator.load_state_dict(torch.load(f'{save_path}kdd_vanilla_dis.pth'))
+    discriminator.eval()
 
-# Define the objective function for Optuna
+    test_data, test_labels = load_and_preprocess_data()
+    test_data = test_data.to(device)
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-# Suggest hyperparameters
-lr_disc = 3e-3
-lr_gen = 3e-3
-
-# Initialize models and optimizers
-disc = Discriminator(784).to(device)
-gen = Generator(64, 784).to(device)
-opt_disc = optim.Adam(disc.parameters(), lr=lr_disc)
-opt_gen = optim.Adam(gen.parameters(), lr=lr_gen)
-criterion = nn.BCELoss()
-
-transforms = transforms.Compose(
-    [transforms.ToTensor()] 
-)
-
-# Data loading
-loader = DataLoader(datasets.MNIST(root="dataset/", transform=transforms, download=True), batch_size=32, shuffle=True)
-
-# Training loop
-for epoch in range(1000):  # Reduced number of epochs for faster trials
-    for batch_idx, (real, _) in enumerate(loader):
-        real = real.view(-1, 784).to(device)
-        noise = torch.randn(real.size(0), 64).to(device)
-        fake = gen(noise)
-
-        # Train Discriminator
-        lossD = (criterion(disc(real), torch.ones_like(disc(real))) +
-                    criterion(disc(fake.detach()), torch.zeros_like(disc(fake)))) / 2
-        opt_disc.zero_grad()
-        lossD.backward()
-        opt_disc.step()
-
-        # Train Generator
-        lossG = criterion(disc(fake), torch.ones_like(disc(fake)))
-        opt_gen.zero_grad()
-        lossG.backward()
-        opt_gen.step()
-
-    
-
-    print(f"Epoch: {epoch}, Loss D: {lossD.item()}, Loss G: {lossG.item()}")
-    # Log losses to TensorBoard
-    writer.add_scalar('Loss/Discriminator', lossD.item(), epoch)
-    writer.add_scalar('Loss/Generator', lossG.item(), epoch)
-    
+    # Discriminator predictions
     with torch.no_grad():
-        fake = gen(noise).view(-1, 1, 28, 28)  # Reshape to (B, C, H, W)
-        writer.add_images('Generated Images', fake, epoch)
+        predictions = discriminator(test_data).cpu().numpy()
 
+    # Convert predictions to binary labels (0 or 1)
+    predicted_labels = (predictions > 0.5).astype(int).flatten()
 
+    # Calculate accuracy
+    accuracy = np.mean(predicted_labels == test_labels)
+    print(f'Accuracy: {accuracy * 100:.2f}%')
 
-
-writer.close()
-
-print(f"  Loss D: {lossD.item()}", end = " ")
-print(f"  Loss G: {lossG.item()}")
-
+if __name__ == "__main__":
+    evaluate_model()

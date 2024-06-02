@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 import subprocess
 from scipy.stats import wasserstein_distance  # For EMD calculation
 
+save_path = 'savedmodel/'
 
 # Helper functions for MMD and EMD
 def gaussian_kernel(x, y, sigma=1.0):
@@ -134,6 +135,13 @@ for epoch in range(1000):  # Reduced number of epochs for faster trials
     with torch.no_grad():
         fake = gen(noise).view(-1, 1, 28, 28)  # Reshape to (B, C, H, W)
         writer.add_images('Generated Images', fake, epoch)
+
+
+
+# Save final model checkpoints
+torch.save(gen.state_dict(), f'{save_path}wgan_generator_final.pth')
+torch.save(critic.state_dict(), f'{save_path}wgan_critic_final.pth')
+
 
 writer.close()
 

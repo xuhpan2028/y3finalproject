@@ -7,6 +7,11 @@ import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 import subprocess
 from scipy.stats import wasserstein_distance  # For EMD calculation
+import os
+
+
+save_path = 'savedmodel/'
+os.makedirs(save_path, exist_ok=True)
 
 
 # Helper functions for MMD and EMD
@@ -137,7 +142,15 @@ for epoch in range(1000):  # Reduced number of epochs for faster trials
         fake = gen(noise).view(-1, 1, 28, 28)  # Reshape to (B, C, H, W)
         writer.add_images('Generated Images', fake, epoch)
 
+
+# Save final model checkpoints
+torch.save(gen.state_dict(), f'{save_path}generator_final.pth')
+torch.save(disc.state_dict(), f'{save_path}discriminator_final.pth')
+
+
 writer.close()
+
+
 
 print(f"  Loss D: {lossD.item()}", end = " ")
 print(f"  Loss G: {lossG.item()}")
@@ -145,3 +158,5 @@ print(f"  MMD: {mmd_score}", end = " ")
 print(f"  EMD: {emd_score}")
 print(f"  GPU Memory Used: {memory_used}/{memory_total} MiB", end = " ")
 print(f"  GPU Utilization: {utilization}%")
+
+
