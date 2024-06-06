@@ -9,10 +9,8 @@ import subprocess
 from scipy.stats import wasserstein_distance  # For EMD calculation
 import os
 
-
 save_path = 'savedmodel/'
 os.makedirs(save_path, exist_ok=True)
-
 
 # Helper functions for MMD and EMD
 def gaussian_kernel(x, y, sigma=1.0):

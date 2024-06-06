@@ -1,15 +1,15 @@
+import optuna
 import pandas as pd
 import numpy as np
 import sys
-from sklearn.preprocessing import LabelEncoder,OneHotEncoder, MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import os
 sys.path.append('/homes/hp921/y3finalproject')
-from utils import *
+from utils import compute_mmd, compute_emd, get_gpu_usage
 from torch.utils.tensorboard import SummaryWriter
-
 
 
 train_url = 'https://raw.githubusercontent.com/merteroglu/NSL-KDD-Network-Instrusion-Detection/master/NSL_KDD_Train.csv'
@@ -31,14 +31,10 @@ df = pd.read_csv(train_url,header=None, names = col_names)
 
 df_test = pd.read_csv(test_url, header=None, names = col_names)
 
-
-
 categorical_columns=['protocol_type', 'service', 'flag']
 
 df_categorical_values = df[categorical_columns]
 testdf_categorical_values = df_test[categorical_columns]
-
-# df_categorical_values.head()
 
 df_categorical_values_enc=df_categorical_values.apply(LabelEncoder().fit_transform)
 df[categorical_columns] = df[categorical_columns].apply(LabelEncoder().fit_transform)
@@ -47,7 +43,6 @@ df[categorical_columns] = df[categorical_columns].apply(LabelEncoder().fit_trans
 testdf_categorical_values_enc=testdf_categorical_values.apply(LabelEncoder().fit_transform)
 
 df['label'] = df['label'].apply(lambda x: 0 if x == 'normal' else 1)
-
 
 # Separate normal and anomaly data
 normal_data_df = df[df['label'] == 1].drop(columns=['label']).reset_index(drop=True)
@@ -66,14 +61,8 @@ anomaly_data = scaler.transform(anomaly_data)
 normal_data = torch.tensor(normal_data)
 anomaly_data = torch.tensor(anomaly_data)
 
-# Hyperparameters
-batch_size = 64
-latent_dim = 76
-learning_rate = 0.0008614867655382943
-learning_rate_D = 4.032045351608014e-05
-num_epochs = 100
-
 # DataLoader
+batch_size = 64
 data_loader = torch.utils.data.DataLoader(normal_data, batch_size=batch_size, shuffle=True)
 
 class Discriminator(nn.Module):
@@ -94,7 +83,6 @@ class Generator(nn.Module):
         super().__init__()
         self.gen = nn.Sequential(
             nn.Linear(z_dim, 256),
-
             nn.LeakyReLU(0.1),
             nn.Linear(256, img_dim),
             nn.Tanh()
@@ -102,73 +90,61 @@ class Generator(nn.Module):
 
     def forward(self, x):
         return self.gen(x)
+
+def objective(trial):
+    latent_dim = trial.suggest_int('latent_dim', 50, 200)
+    learning_rate_G = trial.suggest_loguniform('learning_rate_G', 1e-5, 1e-2)
+    learning_rate_D = trial.suggest_loguniform('learning_rate_D', 1e-5, 1e-2)
     
+    # Define your models, optimizer, and loss function
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    generator = Generator(latent_dim, normal_data.shape[1]).to(device)
+    discriminator = Discriminator(normal_data.shape[1]).to(device)
+    
+    criterion = nn.BCELoss()
+    optimizer_G = optim.Adam(generator.parameters(), lr=learning_rate_G)
+    optimizer_D = optim.Adam(discriminator.parameters(), lr=learning_rate_D)
+    
+    num_epochs = 100  # Fixed number of epochs
 
-save_path = 'savedmodel/'
-os.makedirs(save_path, exist_ok=True)
+    # Training loop
+    for epoch in range(num_epochs):
+        for batch_idx, real_data in enumerate(data_loader):
+            real = real_data.to(device)
+            noise = torch.randn(real.size(0), latent_dim).to(device)
+            fake = generator(noise)
 
-# Setting up TensorBoard
-writer = SummaryWriter('/homes/hp921/y3finalproject/runs/vanilla_KDD')
+            # Train Discriminator
+            disc_real = discriminator(real)
+            disc_fake = discriminator(fake.detach())
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print("using ", device)
+            lossD_real = criterion(disc_real, torch.ones_like(disc_real))
+            lossD_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
+            lossD = (lossD_real + lossD_fake) / 2
 
-# Define your models, optimizer, and loss function
-generator = Generator(latent_dim, normal_data.shape[1]).to(device)
-discriminator = Discriminator(normal_data.shape[1]).to(device)
+            optimizer_D.zero_grad()
+            lossD.backward()
+            optimizer_D.step()
 
-criterion = nn.BCELoss()
-optimizer_G = optim.Adam(generator.parameters(), lr=learning_rate)
-optimizer_D = optim.Adam(discriminator.parameters(), lr=learning_rate_D)
+            # Train Generator
+            output = discriminator(fake)
+            lossG = criterion(output, torch.ones_like(output))
 
-# Training loop
-for epoch in range(1000):  # Reduced number of epochs for faster trials
-    for batch_idx, real_data in enumerate(data_loader):
-        real = real_data.to(device)
-        noise = torch.randn(real.size(0), latent_dim).to(device)
-        fake = generator(noise)
-
-        # Train Discriminator
-        disc_real = discriminator(real)
-        disc_fake = discriminator(fake.detach())
-
-        lossD_real = criterion(disc_real, torch.ones_like(disc_real))
-        lossD_fake = criterion(disc_fake, torch.zeros_like(disc_fake))
-        lossD = (lossD_real + lossD_fake) / 2
-
-        optimizer_D.zero_grad()
-        lossD.backward()
-        optimizer_D.step()
-
-        # Train Generator
-        output = discriminator(fake)
-        lossG = criterion(output, torch.ones_like(output))
-
-        optimizer_G.zero_grad()
-        lossG.backward()
-        optimizer_G.step()
-
-    # Calculate MMD and EMD scores
+            optimizer_G.zero_grad()
+            lossG.backward()
+            optimizer_G.step()
+    
+    # Calculate MMD score
     mmd_score = compute_mmd(real, fake)
-    emd_score = compute_emd(real, fake)
+    return lossG.item() + 0.2 * lossD.item() + mmd_score
 
-    # Get GPU usage
-    memory_used, memory_total, utilization = get_gpu_usage()
+study = optuna.create_study(direction='minimize')
+study.optimize(objective, n_trials=50)
 
-    print(f"Epoch: {epoch}, Loss D: {lossD.item()}, Loss G: {lossG.item()}, MMD: {mmd_score}, EMD: {emd_score}, GPU Memory: {memory_used}/{memory_total} MiB, GPU Utilization: {utilization}%")
-    # Log losses and scores to TensorBoard
-    writer.add_scalar('Loss/Discriminator', lossD.item(), epoch)
-    writer.add_scalar('Loss/Generator', lossG.item(), epoch)
-    writer.add_scalar('Score/MMD', mmd_score, epoch)
-    writer.add_scalar('Score/EMD', emd_score, epoch)
-    writer.add_scalar('GPU/Memory_Used', memory_used, epoch)
-    writer.add_scalar('GPU/Memory_Total', memory_total, epoch)
-    writer.add_scalar('GPU/Utilization', utilization, epoch)
+print('Best trial:')
+trial = study.best_trial
 
-    print(f'Epoch [{epoch+1}/1000]  Loss D: {lossD.item()}, Loss G: {lossG.item()}')
-
-
-
-# Save final model checkpoints
-torch.save(generator.state_dict(), f'{save_path}kdd_vanilla_gen.pth')
-torch.save(discriminator.state_dict(), f'{save_path}kdd_vanilla_dis.pth')
+print(f'  Value: {trial.value}')
+print('  Params: ')
+for key, value in trial.params.items():
+    print(f'    {key}: {value}')
