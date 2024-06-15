@@ -54,7 +54,7 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-mnist = datasets.MNIST(root='mnist_data', train=True, transform=transform, download=True)
+mnist = datasets.MNIST(root='dataset', train=True, transform=transform, download=True)
 loader = torch.utils.data.DataLoader(mnist, batch_size=1000, shuffle=True)
 
 # Get real data

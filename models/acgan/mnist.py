@@ -59,7 +59,7 @@ z_dim = 64  # Dimension of the noise vector
 num_classes = 10
 batch_size = 64
 lr = 3e-4
-num_epochs = 50
+num_epochs = 1000
 
 # Data preparation
 transform = transforms.Compose([
@@ -143,8 +143,8 @@ for epoch in range(num_epochs):
         d_loss.backward()
         optim_D.step()
 
-        
-        
+
+
 
     # Log images to TensorBoard
     if epoch % 10 == 0:
@@ -156,10 +156,23 @@ for epoch in range(num_epochs):
             grid = make_grid(generated_images, nrow=4, normalize=True)
             writer.add_image('generated_images', grid, epoch)
 
-    print(
-            f"Epoch [{epoch}/{num_epochs}] \
-                Loss D: {d_loss.item():.4f}, loss G: {g_loss.item():.4f}"
-        )
+            # Calculate MMD and EMD scores
+            mmd_score = compute_mmd(real_images, gen_images)
+            emd_score = compute_emd(real_images, gen_images)
+
+            # Get GPU usage
+            memory_used, memory_total, utilization = get_gpu_usage()
+
+            print(f"Epoch: {epoch}, Loss D: {d_loss.item():.4f}, Loss G: {g_loss.item():.4f}, MMD: {mmd_score}, EMD: {emd_score}, GPU Memory: {memory_used}/{memory_total} MiB, GPU Utilization: {utilization}%")
+            # Log losses and scores to TensorBoard
+            writer.add_scalar('Loss/Discriminator', d_loss.item(), epoch)
+            writer.add_scalar('Loss/Generator', g_loss.item(), epoch)
+            writer.add_scalar('Score/MMD', mmd_score, epoch)
+            writer.add_scalar('Score/EMD', emd_score, epoch)
+            writer.add_scalar('GPU/Memory_Used', memory_used, epoch)
+            writer.add_scalar('GPU/Memory_Total', memory_total, epoch)
+            writer.add_scalar('GPU/Utilization', utilization, epoch)
+
 
 # Save models
 torch.save(G.state_dict(), 'savedmodel/acgan_mnist_gen.pth')
