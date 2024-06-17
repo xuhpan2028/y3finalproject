@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 import subprocess
 from scipy.stats import wasserstein_distance  # For EMD calculation
 
+save_path = 'savedmodel/'
 
 # Helper functions for MMD and EMD
 def gaussian_kernel(x, y, sigma=1.0):
@@ -37,7 +38,7 @@ def get_gpu_usage():
     return memory_used, memory_total, utilization, temperature
 
 # Setting up TensorBoard
-writer = SummaryWriter('runs/conditional')
+writer = SummaryWriter('runs/mnist_cgan')
 
 # Initialize Conditional Discriminator and Generator
 class Discriminator(nn.Module):
@@ -147,6 +148,10 @@ for epoch in range(1000):  # Reduced number of epochs for faster trials
     with torch.no_grad():
         fake = gen(noise, labels).view(-1, 1, 28, 28)  # Reshape to (B, C, H, W)
         writer.add_images('Generated Images', fake, epoch)
+
+
+torch.save(gen.state_dict(), f'{save_path}mnist_cgan_g.pth')
+torch.save(disc.state_dict(), f'{save_path}mnist_cgan_d.pth')
 
 writer.close()
 
